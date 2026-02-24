@@ -1,0 +1,4 @@
+items/
+backups/
+__pycache__/
+config.py

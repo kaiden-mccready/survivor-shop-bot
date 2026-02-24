@@ -1,0 +1,7 @@
+{
+    "name": "Name of Item",
+    "price": 4,
+    "quantity": 1,
+    "description": "Descrption of item (this shows up in the shop + inventory) (optional)",
+    "description_on_use": "Description of item when used (optional)"
+}
