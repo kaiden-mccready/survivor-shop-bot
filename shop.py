@@ -126,10 +126,14 @@ class Shop:
     def stock(self, item: Item):
         self.inventory.append(item)
         
-    def populate(self, customers: list[Customer]):
-        for customer in customers:
-            if customer not in self.customers:
-                self.customers.append(customer)
+    def populate(self, customers):
+        if isinstance(customers, Customer):
+            if customers not in self.customers:
+                self.customers.append(customers)
+        elif isinstance(customers, dict):
+            for customer in customers.values():
+                if customer not in self.customers:
+                    self.customers.append(customer)
 
     def remove_one_of(self, item: Item):
         item.quantity += -1
