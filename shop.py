@@ -88,6 +88,9 @@ class Shop:
                     item_data = json.load(f)
                     new_item = Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
                     self.stock(new_item)
+                # change file to hidden
+                os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
+                print(f"Imported item '{new_item.name}' from '{filename}' and moved file to hidden.")
 
     def restore(self):
         backup_folder = self.backup_folder or DEFAULT_BACKUP_FOLDER_NAME
