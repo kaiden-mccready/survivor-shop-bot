@@ -67,11 +67,12 @@ class Customer:
             return output
          
 class Shop:
-    def __init__(self, backup_folder: str | None = None, from_backup: bool = False, import_items_from_folder: str | None = None):
+    def __init__(self, prefix: str, backup_folder: str | None = None, from_backup: bool = False, import_items_from_folder: str | None = None):
         self.inventory = []
         self.customers = []
         self.backup_folder = backup_folder
         self.name = "Carl Nook"
+        self.prefix = prefix
         if from_backup:
             self.restore()
         if import_items_from_folder:
