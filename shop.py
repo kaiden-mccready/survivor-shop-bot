@@ -78,20 +78,28 @@ class Shop:
         if import_items_from_folder:
             self.import_items_from_folder(import_items_from_folder)
 
-    def import_items_from_folder(self, folder_path: str):
+    def import_folder(self, folder_path: str, object_type: str):
         if not os.path.exists(folder_path):
-            print(f"Folder '{folder_path}' does not exist.")
-            return
+                raise Exception(f"Folder '{folder_path}' does not exist.")
         for filename in os.listdir(folder_path):
             if filename.endswith('.json') and not filename.startswith('.'): # don't include hidden files
-                with open(os.path.join(folder_path, filename), 'r') as f:
-                    item_data = json.load(f)
-                    new_item = Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
-                    self.stock(new_item)
+                if object_type == "customer":
+                    with open(os.path.join(folder_path, filename), 'r') as f:
+                        customer_data = json.load(f)
+                        new_customer = Customer(name=customer_data['name'], userID=customer_data['userID'], wealth=customer_data['wealth'])
+                        new_customer.inventory = [Item(**item) for item in customer_data.get('inventory', [])]
+                        self.populate(new_customer)
+                elif object_type == "item":
+                    with open(os.path.join(folder_path, filename), 'r') as f:
+                        item_data = json.load(f)
+                        new_item = Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
+                        self.stock(new_item)
+                else:
+                    raise Exception(f"Invalid object type '{object_type}' specified. Must be 'folder' or 'item'.")
                 # change file to hidden
                 os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
-                print(f"Imported item '{new_item.name}' from '{filename}' and moved file to hidden.")
-
+                print(f"Imported {object_type} '{filename}' and hid filename.")
+            
     def restore(self):
         backup_folder = self.backup_folder or DEFAULT_BACKUP_FOLDER_NAME
         if backup_folder and os.path.exists(backup_folder):
@@ -165,7 +173,9 @@ class Shop:
                     return f"It seems you're a bit too low on funds for that purchase by about {item.price - wealth}g... Perhaps another ware catches your eye? Maybe one a bit... cheaper?"
         return f"Doesn't look like we sell anything by the name of {requestedItemName}, exactly... did you misspell it?"
     
-    def print_customers(self):
+    def print_customers(self, verbose = False):
+        if verbose:
+            return [f"{customer.name} (ID: {customer.userID}, Wealth: {customer.wealth} coins, Tribe: {customer.tribe})" for customer in self.customers]
         return [customer.name for customer in self.customers]
     
     def display(self):
@@ -173,8 +183,10 @@ class Shop:
         for item in self.inventory:
              output += f"* {item.quantity}x {item.name} - {item.price}g {"\n-# \"" + item.description + "\"\n" if item.description else "\n"}"
         if self.inventory == []:
-            output += "[We're sold out!]"
+            output += "[We're sold out!]\n"
         output += f'~~' + " " * 10 + "~~\n"
+        if self.inventory != []:
+            output = "*To buy an item, use the command !buy \"<item name>\".*" + output
         return output
 
     def str_detailed_summary(self):
@@ -206,10 +218,4 @@ def id_to_customer(shop: Shop, user_id: str) -> Customer:
         if customer.userID == user_id:
             return customer
     # not in database :(
-    print(f"WARNING: UPDATED SYSTEM TO INCLUDE USER {user_id}, this is NOT NORMAL LOLOLOL")
-    new_customer = Customer(user_id, user_id, 0)
-    shop.customers.append(new_customer)
-    print(f"full list of customers: {shop.print_customers()}")
-
-    
-    return new_customer
+    raise Exception(f'{user_id} not found in customer database...')

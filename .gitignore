@@ -1,4 +1,5 @@
-items/
+items/testing_wand.json
+customers/testing_person.json
 backups/
 __pycache__/
 config.py

@@ -81,15 +81,16 @@ async def help(ctx):
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def check_shop(ctx):
-    await ctx.send("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:")
-    await ctx.send(todaysShop.display())
-    await ctx.send("*To buy an item, use the command !buy \"<item name>\".*")
+    await ctx.send("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def check_inventory(ctx):
     await ctx.send("You look inside your pouch to find...")
     customer = shop.id_to_customer(todaysShop, ctx.author.name)
+    if customer is None:
+        await ctx.send("You aren't a customer!")
+        return
     await ctx.send(customer.check_inventory())
 
 @bot.command()
@@ -117,9 +118,10 @@ async def give(ctx, recipient: str, item_name: str):
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def help_admin(ctx):
     await ctx.send("Here are the admin commands you can use:" + \
-                   f"\n* {todaysShop.prefix}add_remove_money <userID> <amount> - Add or remove money from a user's account (you can say \"myself\")" + \
-                   f"\n* {todaysShop.prefix}add_remove_money_tribe <tribe> <amount> - Add or remove money from all members of a tribe" +
+                   f"\n* {todaysShop.prefix}check_customers - View a list of all customers (use verbose=True for more details)" + \
                    f"\n* {todaysShop.prefix}check_inventory_of <userID> - View the inventory of a specific user" +
+                   f"\n* {todaysShop.prefix}move_money <userID> <amount> - Add or remove money from a user's account (you can say \"myself\")" + \
+                   f"\n* {todaysShop.prefix}move_money_tribe <tribe> <amount> - Add or remove money from all members of a tribe" +
                    f"\n* {todaysShop.prefix}add_shop_item - Add a new item to the shop (you will be prompted for item details)" +
                    f"\n* {todaysShop.prefix}remove_shop_item <item name> - Remove an item from the shop" +
                    f"\n* {todaysShop.prefix}change_item_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
@@ -129,31 +131,43 @@ async def help_admin(ctx):
                    f"\n* {todaysShop.prefix}restore - Manually restore the shop's state from the latest backup" + \
                    f"\n* {todaysShop.prefix}clear_shop - Clear all items and customer data from the shop (use with extreme caution!)" + \
                    f"\n* {todaysShop.prefix}restore_specific - Restore the shop's state from a specific backup file (you will be prompted to choose from recent backups)" + \
-                   f"\n* {todaysShop.prefix}add_all_folder_items <folder path> - Add all items from a specified folder to the shop")
+                   f"\n* {todaysShop.prefix}add_folder_items <folder path> - Add all items from a specified folder to the shop" + \
+                   f"\n* {todaysShop.prefix}add_folder_customers <folder path> - Add all customers from a specified folder to the shop")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def add_remove_money(ctx, userID: str, howMuch: int):
+async def check_customers(ctx, verbose: bool = False):
+    await ctx.send(todaysShop.print_customers(verbose=verbose))
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def check_inventory_of(ctx, user: str):
+    customer = shop.id_to_customer(todaysShop, user)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{user}'.")
+        return
+    await ctx.send(f"You look inside {user}'s pouch to find...\n" + \
+                   customer.check_inventory())
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def move_money(ctx, userID: str, howMuch: int):
     if userID == "myself":
         userID = ctx.author.name
     customer = shop.id_to_customer(todaysShop, userID)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{userID}'.")
+        return
     customer.wealth += howMuch
     await ctx.send(f"done. {customer.name}'s wealth is now {customer.wealth}")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def add_remove_money_tribe(ctx, tribe: str, howMuch: int):
+async def move_money_tribe(ctx, tribe: str, howMuch: int):
     for customer in todaysShop.customers:
         if customer.tribe == tribe:
             customer.wealth += howMuch
     await ctx.send(f"All members of {tribe} have had their wealth adjusted by {howMuch} coins.")
-
-@bot.command()
-@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def check_inventory_of(ctx, user: str):
-    await ctx.send(f"You look inside {user}'s pouch to find...")
-    customer = shop.id_to_customer(todaysShop, user)
-    await ctx.send(customer.check_inventory())
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -195,13 +209,15 @@ async def change_item_quantity(ctx, item_name: str, new_quantity: int):
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def add_myself_as_customer(ctx, wealth: int | None = None):
-    if shop.id_to_customer(todaysShop, ctx.author.name) is not None:
-        await ctx.send("You are already registered as a customer.")
+async def add_customer(ctx, userID: str, wealth: int = 0):
+    if userID == "myself":
+        userID = ctx.author.name
+    if shop.id_to_customer(todaysShop, userID) is not None:
+        await ctx.send(f"{userID} is already registered as a customer.")
         return
-    new_customer = shop.Customer(name=ctx.author.name, userID=ctx.author.name, wealth=wealth or 0)
-    todaysShop.customers.populate(new_customer)
-    await ctx.send("You have been added as a customer!")
+    new_customer = shop.Customer(name=userID, userID=userID, wealth=wealth)
+    todaysShop.customers.append(new_customer)
+    await ctx.send(f"{userID} has been added as a customer with {wealth} coins.")
 
 # mega admin commands (use with caution)
 @bot.command()
@@ -253,15 +269,22 @@ async def clear_shop(ctx):
         await ctx.send("Shop clear cancelled.")
         return
     global todaysShop
-    todaysShop = shop.Shop(backup_folder=DEFAULT_BACKUP_FOLDER_NAME, from_backup=False)
+    todaysShop = shop.Shop(backup_folder=DEFAULT_BACKUP_FOLDER_NAME, from_backup=False, prefix=COMMAND_PREFIX)
     todaysShop.backup()
     await ctx.send("Shop cleared!")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
+async def add_folder_customers(ctx, folder_path: str = "customers"):
+    todaysShop.import_folder(folder_path, object_type="customer")
+    await ctx.send(f"All customers from folder '{folder_path}' have been added to the shop.")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
 async def add_folder_items(ctx, folder_path: str = "items"):
-    todaysShop.import_items_from_folder(folder_path)
+    todaysShop.import_folder(folder_path, object_type="item")
     await ctx.send(f"All items from folder '{folder_path}' have been added to the shop.")
+
 
 ##### Run the bot #####
 
