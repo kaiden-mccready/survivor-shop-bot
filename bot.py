@@ -259,7 +259,7 @@ async def clear_shop(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def add_all_folder_items(ctx, folder_path: str = "items"):
+async def add_folder_items(ctx, folder_path: str = "items"):
     todaysShop.import_items_from_folder(folder_path)
     await ctx.send(f"All items from folder '{folder_path}' have been added to the shop.")
 

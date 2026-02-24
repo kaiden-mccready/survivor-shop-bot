@@ -83,7 +83,7 @@ class Shop:
             print(f"Folder '{folder_path}' does not exist.")
             return
         for filename in os.listdir(folder_path):
-            if filename.endswith('.json') and filename != 'TEMPLATE.json': # don't include file named TEMPLATE.json
+            if filename.endswith('.json') and not filename.startswith('.'): # don't include hidden files
                 with open(os.path.join(folder_path, filename), 'r') as f:
                     item_data = json.load(f)
                     new_item = Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
