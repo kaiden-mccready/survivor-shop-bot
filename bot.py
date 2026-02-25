@@ -4,10 +4,13 @@ Made by: Kaiden McCready 2/2025
 
 import atexit
 import asyncio
+import json
 import signal
 import sys
 import discord
 from discord.ext import commands, tasks
+from discord.utils import get
+
 import regex as re
 from pathlib import Path
 import os
@@ -22,6 +25,7 @@ os.chdir(script_dir)
 # set up bot
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents, help_command=None)
 
 print("Setting up shop...")
@@ -280,14 +284,59 @@ async def clear_shop(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def add_folder_customers(ctx, folder_path: str = "customers"):
-    todaysShop.import_folder(folder_path, object_type="customer")
+    await import_folder(todaysShop, folder_path, object_type="customer")
     await ctx.send(f"All customers from folder '{folder_path}' have been added to the shop.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def add_folder_items(ctx, folder_path: str = "items"):
-    todaysShop.import_folder(folder_path, object_type="item")
+    await import_folder(todaysShop, folder_path, object_type="item")
     await ctx.send(f"All items from folder '{folder_path}' have been added to the shop.")
+
+async def get_discord_id_from_str(discordIDstr: str) -> int:
+    users = bot.get_all_members()
+    print(f"Looking for user with global name '{discordIDstr}'...")
+    for user in users:
+        if user.name == discordIDstr:
+            return user.id or "No ID"
+    raise ValueError(f"Could not find user with global name '{discordIDstr}' for finding Discord ID.")
+
+    
+async def get_server_nickname_from_str(discordIDstr: str) -> str:
+    users = bot.get_all_members()
+    print(f"Looking for user with global name '{discordIDstr}'...")
+    for user in users:
+        if user.name == discordIDstr:
+            return user.global_name or "No nickname"
+    raise ValueError(f"Could not find user with global name '{discordIDstr}' for finding server nickname")
+
+async def import_folder(shop_to_add_to: shop.Shop, folder_path: str, object_type: str):
+    if not os.path.exists(folder_path):
+            raise Exception(f"Folder '{folder_path}' does not exist.")
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.json') and not filename.startswith('.'): # don't include hidden files
+            if object_type == "customer":
+                with open(os.path.join(folder_path, filename), 'r') as f:
+                    customer_data = json.load(f)
+                    new_customer = shop.Customer(
+                        realname=customer_data['realname'], 
+                        discordIDstr=customer_data['discordIDstr'], 
+                        discordIDint=customer_data.get('discordIDint') or await get_discord_id_from_str(customer_data['discordIDstr']), 
+                        servernickname=customer_data.get('servernickname') or await get_server_nickname_from_str(customer_data['discordIDstr']), 
+                        wealth=customer_data.get('wealth', None),
+                        tribe=customer_data.get('tribe', None))
+                    new_customer.inventory = [shop.Item(**item) for item in customer_data.get('inventory', [])]
+                    shop_to_add_to.populate(new_customer)
+            elif object_type == "item":
+                with open(os.path.join(folder_path, filename), 'r') as f:
+                    item_data = json.load(f)
+                    new_item = shop.Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
+                    shop_to_add_to.stock(new_item)
+            else:
+                raise Exception(f"Invalid object type '{object_type}' specified. Must be 'folder' or 'item'.")
+            # change file to hidden
+            os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
+            print(f"Imported {object_type} '{filename}' and hid filename.")
 
 
 ##### Run the bot #####

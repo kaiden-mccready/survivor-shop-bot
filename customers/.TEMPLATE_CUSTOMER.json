@@ -1,6 +1,9 @@
 {
-  "name": "TEMPLATE_CUSTOMER",
-  "userID": "TEMPLATE_USER_ID",
+  "realname": "REQUIRED_NAME",
+  "discordIDstr": "REQUIRED_DISCORD_ID_STRING",
+  "tribe": "OPTIONAL_TRIBE",
+  "discordIDint": 123456789012345678,
+  "nickname": "OPTIONAL_NICKNAME",
   "wealth": 0,
   "inventory": []
 }

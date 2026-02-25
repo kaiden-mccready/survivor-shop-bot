@@ -24,10 +24,10 @@ class Item:
         return Item(self.name, self.price, self.quantity, self.description, self.description_on_use)
     
 class Customer:
-    def __init__(self, servernickname: str, discordIDstr: str, realname: str, discordIDint: int, wealth: int = 0, tribe: str | None = None):
-          self.servernickname = servernickname
-          self.discordIDstr = discordIDstr
+    def __init__(self, realname: str, discordIDstr: str, servernickname: str, discordIDint: int, wealth: int | None = 0, tribe: str | None = None):
           self.realname = realname
+          self.discordIDstr = discordIDstr
+          self.servernickname = servernickname
           self.discordIDint = discordIDint
           self.tribe = tribe
           self.wealth = wealth
@@ -79,28 +79,6 @@ class Shop:
             self.restore()
         if import_items_from_folder:
             self.import_items_from_folder(import_items_from_folder)
-
-    def import_folder(self, folder_path: str, object_type: str):
-        if not os.path.exists(folder_path):
-                raise Exception(f"Folder '{folder_path}' does not exist.")
-        for filename in os.listdir(folder_path):
-            if filename.endswith('.json') and not filename.startswith('.'): # don't include hidden files
-                if object_type == "customer":
-                    with open(os.path.join(folder_path, filename), 'r') as f:
-                        customer_data = json.load(f)
-                        new_customer = Customer(name=customer_data['name'], userID=customer_data['userID'], wealth=customer_data['wealth'])
-                        new_customer.inventory = [Item(**item) for item in customer_data.get('inventory', [])]
-                        self.populate(new_customer)
-                elif object_type == "item":
-                    with open(os.path.join(folder_path, filename), 'r') as f:
-                        item_data = json.load(f)
-                        new_item = Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
-                        self.stock(new_item)
-                else:
-                    raise Exception(f"Invalid object type '{object_type}' specified. Must be 'folder' or 'item'.")
-                # change file to hidden
-                os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
-                print(f"Imported {object_type} '{filename}' and hid filename.")
             
     def restore(self):
         backup_folder = self.backup_folder or DEFAULT_BACKUP_FOLDER_NAME
@@ -116,7 +94,13 @@ class Shop:
     def backup(self, backup_folder: str = DEFAULT_BACKUP_FOLDER_NAME):
         backup_data = {
             'inventory': [vars(item) for item in self.inventory],
-            'customers': [{'name': customer.name, 'userID': customer.userID, 'wealth': customer.wealth, 'inventory': [vars(item) for item in customer.inventory]} for customer in self.customers]
+            'customers': [{'servernickname': customer.servernickname,
+                           'discordIDstr': customer.discordIDstr,
+                           'realname': customer.realname,
+                           'discordIDint': customer.discordIDint,
+                           'wealth': customer.wealth, 
+                           'inventory': [vars(item) for item in customer.inventory]
+                           } for customer in self.customers]
         }
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
@@ -133,7 +117,14 @@ class Shop:
             self.inventory = [Item(**item) for item in data.get('inventory', [])]
             self.customers = []
             for customer_data in data.get('customers', []):
-                customer = Customer(customer_data['name'], customer_data['userID'], customer_data['wealth'])
+                customer = Customer(
+                    servernickname = customer_data['servernickname'],
+                    discordIDstr = customer_data['discordIDstr'],
+                    realname = customer_data['realname'],
+                    discordIDint = customer_data['discordIDint'],
+                    tribe = customer_data.get('tribe'),
+                    wealth = customer_data['wealth']
+                )
                 customer.inventory = [Item(**item) for item in customer_data.get('inventory', [])]
                 self.customers.append(customer)
 
@@ -178,7 +169,7 @@ class Shop:
     def print_customers(self, verbose = False):
         if verbose:
             return [f"{customer.name} (ID: {customer.userID}, Wealth: {customer.wealth} coins, Tribe: {customer.tribe})" for customer in self.customers]
-        return [customer.name for customer in self.customers]
+        return [f"{customer.realname} \"{customer.servernickname}\"" for customer in self.customers]
     
     def display(self):
         output = f'~~' + " " * 10 + "~~\n"
