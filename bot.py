@@ -161,14 +161,15 @@ async def give_away(ctx, item_name: str):
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def help_admin(ctx):
     await ctx.send("Here are the admin commands you can use:" + \
+                   f"\n* {todaysShop.prefix}add_customer <userID> <wealth> <tribe> - Add a new customer to the shop with an optional starting wealth and tribe (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}check_customers - View a list of all customers (use verbose=True for more details)" + \
+                   f"\n* {todaysShop.prefix}remove_customer <userID> - Remove a customer from the shop (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}move_money <userID> <amount> - Add or remove money from a user's account (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}move_money_tribe <tribe> <amount> - Add or remove money from all members of a tribe" +
                    f"\n* {todaysShop.prefix}add_shop_item - Add a new item to the shop (you will be prompted for item details)" +
+                   f"\n* {todaysShop.prefix}add_customer_item - Give a new item to a customer (you will be prompted for customer and item details)" + \
                    f"\n* {todaysShop.prefix}remove_shop_item <item name> - Remove an item from the shop" +
-                   f"\n* {todaysShop.prefix}change_item_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
-                   f"\n* {todaysShop.prefix}add_customer <userID> <wealth> <tribe> - Add a new customer to the shop with an optional starting wealth and tribe (you can say \"myself\")" + \
-                   f"\n* {todaysShop.prefix}remove_customer <userID> - Remove a customer from the shop (you can say \"myself\")" + \
+                   f"\n* {todaysShop.prefix}change_shop_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
                    "\n**Mega Admin Commands (usable by hosts only):**" + \
                    f"\n* {todaysShop.prefix}backup - Manually trigger a backup of the shop's state" + \
                    f"\n* {todaysShop.prefix}restore - Manually restore the shop's state from the latest backup" + \
@@ -227,6 +228,32 @@ async def add_shop_item(ctx):
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def add_customer_item(ctx):
+    await ctx.send("Please pick from the following customers to add an item to their inventory:\n" + todaysShop.print_customers())
+    userID = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    customer = shop.id_to_customer(todaysShop, userID)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{userID}'. Make sure you entered it correctly and that the customer is registered.")
+        return
+    await ctx.send("Please enter the name of the item:")
+    item_name = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    await ctx.send("Please enter the price of the item:")
+    item_price = int((await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content)
+    await ctx.send("Please enter a description for the item (or type 'none'):")
+    item_description = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if item_description.lower() == 'none':
+        item_description = None
+    await ctx.send("Please enter a description for the item when used (or type 'none'):")
+    item_description_on_use = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if item_description_on_use.lower() == 'none':
+        item_description_on_use = None
+    new_item = shop.Item(name=item_name, price=item_price, description=item_description, description_on_use=item_description_on_use)
+    customer.inventory.append(new_item)
+    await ctx.send(f"{item_name} has been added to {customer.realname}'s inventory.")
+    
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def remove_shop_item(ctx, item_name: str):
     for item in todaysShop.inventory:
         if item.name.lower() == item_name.lower():
@@ -237,7 +264,7 @@ async def remove_shop_item(ctx, item_name: str):
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def change_item_quantity(ctx, item_name: str, new_quantity: int):
+async def change_shop_quantity(ctx, item_name: str, new_quantity: int):
     for item in todaysShop.inventory:
         if item.name.lower() == item_name.lower():
             item.quantity = new_quantity
