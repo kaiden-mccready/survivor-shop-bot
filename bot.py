@@ -163,25 +163,78 @@ async def help_admin(ctx):
     await ctx.send("Here are the admin commands you can use:" + \
                    f"\n* {todaysShop.prefix}add_customer <userID> <wealth> <tribe> - Add a new customer to the shop with an optional starting wealth and tribe (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}check_customers - View a list of all customers (use verbose=True for more details)" + \
+                   f"\n* {todaysShop.prefix}swap_tribe <customerID> <newTribe> - Move a customer to a new tribe" + \
                    f"\n* {todaysShop.prefix}remove_customer <userID> - Remove a customer from the shop (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}move_money <userID> <amount> - Add or remove money from a user's account (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}move_money_tribe <tribe> <amount> - Add or remove money from all members of a tribe" +
                    f"\n* {todaysShop.prefix}add_shop_item - Add a new item to the shop (you will be prompted for item details)" +
                    f"\n* {todaysShop.prefix}add_customer_item - Give a new item to a customer (you will be prompted for customer and item details)" + \
-                   f"\n* {todaysShop.prefix}remove_shop_item <item name> - Remove an item from the shop" +
+                   f"\n* {todaysShop.prefix}remove_shop_item <item name> - Remove an item from the shop" +       
+                   f"\n* {todaysShop.prefix}remove_customer_item <item name> - Remove an item from a customer's inventory" + \
                    f"\n* {todaysShop.prefix}change_shop_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
                    "\n**Mega Admin Commands (usable by hosts only):**" + \
                    f"\n* {todaysShop.prefix}backup - Manually trigger a backup of the shop's state" + \
                    f"\n* {todaysShop.prefix}restore - Manually restore the shop's state from the latest backup" + \
                    f"\n* {todaysShop.prefix}clear_shop - Clear all items and customer data from the shop (use with extreme caution!)" + \
                    f"\n* {todaysShop.prefix}restore_specific <n> - Restore the shop's state from a specific backup file (you will be prompted to choose from recent n backups, default 10)" + \
-                   f"\n* {todaysShop.prefix}add_folder_items <folder path> - Add all items from a specified folder to the shop" + \
-                   f"\n* {todaysShop.prefix}add_folder_customers <folder path> - Add all customers from a specified folder to the shop")
+                   f"\n* {todaysShop.prefix}add_folder_items <folder path> (default \"items\") - Add all items from a specified folder to the shop" + \
+                   f"\n* {todaysShop.prefix}add_folder_customers <folder path> (default \"customers\") - Add all customers from a specified folder to the shop")
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def add_customer(ctx, userID: str, wealth: int = 0, tribe: str | None = None):
+    if userID == "myself":
+        userID = ctx.author.name
+    if shop.id_to_customer(todaysShop, userID) is not None:
+        await ctx.send(f"{userID} is already registered as a customer.")
+        return
+    await ctx.send(f"Please enter the real name of the customer (or type 'none'):")
+    realname = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if realname.lower() == 'none':
+        realname = userID
+    new_customer = shop.Customer(
+        realname=realname, 
+        discordIDstr=userID, 
+        discordIDint=await get_discord_id_from_str(userID), 
+        servernickname=await get_server_nickname_from_str(userID), 
+        wealth=wealth,
+        tribe=tribe
+    )
+    todaysShop.customers.append(new_customer)
+    await ctx.send(f"{userID} has been added as a customer with {wealth} coins.")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def check_customers(ctx, verbose: bool = False):
     await ctx.send(todaysShop.print_customers(verbose=verbose))
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def swap_tribe(ctx, customerID: str, newTribe: str):
+    customer = shop.id_to_customer(todaysShop, customerID)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{customerID}'.")
+        return
+    oldTribe = customer.tribe
+    customer.tribe = newTribe
+    await ctx.send(f"{customer.realname} has been moved from tribe '{oldTribe}' to tribe '{newTribe}'.")
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def remove_customer(ctx, userID: str):
+    if userID == "myself":
+        userID = ctx.author.name
+    customer = shop.id_to_customer(todaysShop, userID)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{userID}'.")
+        return
+    await ctx.send(f"Are you sure you want to remove {customer.realname} from the shop? Type 'yes' to confirm.")
+    confirmation = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if confirmation.lower() != 'yes':
+        await ctx.send("Customer removal cancelled.")
+        return
+    todaysShop.customers.remove(customer)
+    await ctx.send(f"{customer.realname} has been removed from the shop.")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -251,6 +304,16 @@ async def add_customer_item(ctx):
     customer.inventory.append(new_item)
     await ctx.send(f"{item_name} has been added to {customer.realname}'s inventory.")
     
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def remove_customer_item(ctx, item_name: str):
+    for customer in todaysShop.customers:
+        for item in customer.inventory:
+            if item.name.lower() == item_name.lower():
+                customer.inventory.remove(item)
+                await ctx.send(f"{item_name} has been removed from {customer.realname}'s inventory.")
+                return
+    await ctx.send(f"Could not find an item named {item_name} in any customer's inventory.")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -271,46 +334,6 @@ async def change_shop_quantity(ctx, item_name: str, new_quantity: int):
             await ctx.send(f"The quantity of {item_name} has been updated to {new_quantity}.")
             return
     await ctx.send(f"Could not find an item named {item_name} in the shop.")
-
-@bot.command()
-@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def add_customer(ctx, userID: str, wealth: int = 0, tribe: str | None = None):
-    if userID == "myself":
-        userID = ctx.author.name
-    if shop.id_to_customer(todaysShop, userID) is not None:
-        await ctx.send(f"{userID} is already registered as a customer.")
-        return
-    await ctx.send(f"Please enter the real name of the customer (or type 'none'):")
-    realname = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
-    if realname.lower() == 'none':
-        realname = userID
-    new_customer = shop.Customer(
-        realname=realname, 
-        discordIDstr=userID, 
-        discordIDint=await get_discord_id_from_str(userID), 
-        servernickname=await get_server_nickname_from_str(userID), 
-        wealth=wealth,
-        tribe=tribe
-    )
-    todaysShop.customers.append(new_customer)
-    await ctx.send(f"{userID} has been added as a customer with {wealth} coins.")
-
-@bot.command()
-@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def remove_customer(ctx, userID: str):
-    if userID == "myself":
-        userID = ctx.author.name
-    customer = shop.id_to_customer(todaysShop, userID)
-    if customer is None:
-        await ctx.send(f"Could not find a customer with the ID '{userID}'.")
-        return
-    await ctx.send(f"Are you sure you want to remove {customer.realname} from the shop? Type 'yes' to confirm.")
-    confirmation = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
-    if confirmation.lower() != 'yes':
-        await ctx.send("Customer removal cancelled.")
-        return
-    todaysShop.customers.remove(customer)
-    await ctx.send(f"{customer.realname} has been removed from the shop.")
 
 # mega admin commands (use with caution)
 @bot.command()
