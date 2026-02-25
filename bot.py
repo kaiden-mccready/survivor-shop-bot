@@ -68,13 +68,15 @@ async def on_command_error(ctx, error):
 
 # castaway commands (beginning with prefix)
 
+
+
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def help(ctx):
     await ctx.send("Hello there, traveler! Here are the commands you can use to interact with my shop:" \
                    + f"\n* {todaysShop.prefix}help - View this help message" \
                    + f"\n* {todaysShop.prefix}check_shop - View items currently in stock" \
-                   + f"\n* {todaysShop.prefix}check_inventory - View your own inventory and wealth" \
+                   + f"\n* {todaysShop.prefix}check_inventory - View your own inventory" \
                    + f"\n* {todaysShop.prefix}buy \"<item name>\" - Buy an item from the shop" \
                    + f"\n* {todaysShop.prefix}use \"<item name>\" - Use an item from your inventory")
 
@@ -85,13 +87,25 @@ async def check_shop(ctx):
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def check_inventory(ctx):
-    await ctx.send("You look inside your pouch to find...")
-    customer = shop.id_to_customer(todaysShop, ctx.author.name)
-    if customer is None:
-        await ctx.send("You aren't a customer!")
-        return
-    await ctx.send(customer.check_inventory())
+async def check_inventory(ctx, user: str | None = None):
+    if user is None or user.lower() == "myself":
+        user = ctx.author.name
+    if (ctx.author.guild_permissions.administrator or any(role.name in ADMIN_ROLES for role in ctx.author.roles)) and user != ctx.author.name:
+        await ctx.send(f"You look inside {user}'s pouch to find...\n")
+        customer = shop.id_to_customer(todaysShop, user)
+        if customer is None:
+            await ctx.send(f"That you could not find a customer with the ID '{user}'.")
+            return
+        else:
+            await ctx.send(customer.check_inventory())
+    else:
+        await ctx.send("You look inside your pouch to find...\n")
+        customer = shop.id_to_customer(todaysShop, ctx.author.name)
+        if customer is None:
+            await ctx.send("That you aren't a customer yet!")
+            return
+        else:
+            await ctx.send(customer.check_inventory())
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -138,16 +152,6 @@ async def help_admin(ctx):
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def check_customers(ctx, verbose: bool = False):
     await ctx.send(todaysShop.print_customers(verbose=verbose))
-
-@bot.command()
-@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def check_inventory_of(ctx, user: str):
-    customer = shop.id_to_customer(todaysShop, user)
-    if customer is None:
-        await ctx.send(f"Could not find a customer with the ID '{user}'.")
-        return
-    await ctx.send(f"You look inside {user}'s pouch to find...\n" + \
-                   customer.check_inventory())
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))

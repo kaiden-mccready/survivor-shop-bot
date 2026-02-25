@@ -24,12 +24,14 @@ class Item:
         return Item(self.name, self.price, self.quantity, self.description, self.description_on_use)
     
 class Customer:
-    def __init__(self, name: str, userID: str, wealth: int = 0, tribe: str | None = None):
-          self.inventory = []
-          self.name = name
-          self.wealth = wealth
-          self.userID = userID
+    def __init__(self, servernickname: str, discordIDstr: str, realname: str, discordIDint: int, wealth: int = 0, tribe: str | None = None):
+          self.servernickname = servernickname
+          self.discordIDstr = discordIDstr
+          self.realname = realname
+          self.discordIDint = discordIDint
           self.tribe = tribe
+          self.wealth = wealth
+          self.inventory = []
     
     def add_item(self, item: Item):
          self.inventory.append(item)
@@ -213,9 +215,15 @@ class Shop:
         output += "-" * 20
         return output
 
-def id_to_customer(shop: Shop, user_id: str) -> Customer:
+def id_to_customer(shop: Shop, user_identifier: str) -> Customer:
     for customer in shop.customers:
-        if customer.userID == user_id:
+        if customer.discordIDint == user_identifier:
+            return customer
+        elif customer.discordIDstr.lower() == user_identifier.lower():
+            return customer
+        elif customer.realname.lower() == user_identifier.lower():
+            return customer
+        elif customer.servernickname.lower() == user_identifier.lower():
             return customer
     # not in database :(
-    raise Exception(f'{user_id} not found in customer database...')
+    return None
