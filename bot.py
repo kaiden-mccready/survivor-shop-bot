@@ -71,12 +71,19 @@ async def on_command_error(ctx, error):
                 print(f"Error with {ctx.author}: {error}")
             else: print(f"potential problem with {ctx.author}... {error}")
 
+async def update_shop_displays():
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                async for message in channel.history(limit=100):
+                    if message.author == bot.user and message.content.startswith("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:"):
+                        await message.edit(content="Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
+            except discord.Forbidden:
+                pass
+
 ##### Commands #####
 
 # castaway commands (beginning with prefix)
-
-
-
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def help(ctx):
@@ -89,12 +96,12 @@ async def help(ctx):
                    + f"\n* {todaysShop.prefix}give_away \"<item name>\" - Give an item from your inventory to someone else on your tribe (you will be prompted to choose a recipient)")
 
 @bot.command()
-@commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
+@commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES, *SPECTATOR_ROLES]), commands.has_permissions(administrator=True))
 async def check_shop(ctx):
     await ctx.send("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
 
 @bot.command()
-@commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
+@commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES, *SPECTATOR_ROLES]), commands.has_permissions(administrator=True))
 async def check_inventory(ctx, user: str | None = None):
     if user is None or user.lower() == "myself":
         user = ctx.author.name
@@ -119,12 +126,15 @@ async def check_inventory(ctx, user: str | None = None):
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def buy(ctx, item_name: str):
     await ctx.send(todaysShop.attemptBuy(ctx.author.name, item_name))
-    update_shop_displays.start() # Update shop displays after a purchase
+    await update_shop_displays() # Update shop displays after a purchase
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def use(ctx, item_name: str):
     customer = shop.id_to_customer(todaysShop, ctx.author.name)
+    if customer is None:
+        await ctx.send("You aren't a customer yet! You don't have any items to use...")
+        return
     await ctx.send(customer.use(item_name))
 
 @bot.command()
@@ -390,16 +400,6 @@ async def import_folder(shop_to_add_to: shop.Shop, folder_path: str, object_type
 
 bot.run(API_KEY)
 
-async def update_shop_displays():
-    await bot.wait_until_ready()
-    for guild in bot.guilds:
-        for channel in guild.text_channels:
-            try:
-                async for message in channel.history(limit=100):
-                    if message.author == bot.user and message.content.startswith("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:"):
-                        await message.edit(content="Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
-            except discord.Forbidden:
-                pass
 ##### Shutdown handlers #####
 
 def exit_handler():

@@ -7,4 +7,6 @@ COMMAND_PREFIX = "!"
 # filepath for saving / loading info storage (in case server dies)
 DEFAULT_BACKUP_FOLDER_NAME = "backups"
 
-
+CUSTOMER_ROLES = ['Castaways', "Guinea Pig"]
+ADMIN_ROLES = ['Host', "Code and Cyphers"]
+SPECTATOR_ROLES = ['Spectators']

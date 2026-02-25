@@ -21,8 +21,7 @@ class Item:
         return self.description_on_use or f"You used the {self.name}!"
      
     def copy(self):
-        return Item(self.name, self.price, self.quantity, self.description, self.description_on_use)
-    
+        return Item(self.name, self.price, self.quantity, self.description, self.description_on_use)  
 class Customer:
     def __init__(self, realname: str, discordIDstr: str, servernickname: str, discordIDint: int, wealth: int | None = 0, tribe: str | None = None):
           self.realname = realname
@@ -159,6 +158,8 @@ class Shop:
 
         # gets internal customer object from user asking to buy
         customer = id_to_customer(self, customer_id)
+        if customer is None:
+            return "Looks like you're not a customer..."
 
         wealth = customer.wealth
         def canAfford(itemPrice, wealth): return wealth >= itemPrice
