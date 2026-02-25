@@ -62,12 +62,19 @@ class Customer:
         if self.wealth > 0:
             output += f"* {self.wealth}x Gold Coins \n"
         for item in self.inventory:
-             output += f"* {item.quantity}x {item.name}: {"\n-# \"" + item.description + "\"\n" if item.description else "\n"}"
+             output += f"* {item.quantity}x {item.name}{":\n-# \"" + item.description + "\"\n" if item.description else "\n"}"
         if output == '':
             return "Nothing! It seems material wealth alludes you..."
         else: 
             return output
          
+    def give(self, item_name: str, recipient) -> str:
+        for item in self.inventory:
+            if item.name == item_name:
+                self.inventory.remove(item)
+                recipient.add_item(item)
+                return f"Successfully gave {item_name} to {recipient.realname}!"
+        return f"No item in your inventory by the name of {item_name}... did you misspell it?"
 class Shop:
     def __init__(self, prefix: str, backup_folder: str | None = None, from_backup: bool = False, import_items_from_folder: str | None = None):
         self.inventory = []
@@ -166,10 +173,16 @@ class Shop:
                     return f"It seems you're a bit too low on funds for that purchase by about {item.price - wealth}g... Perhaps another ware catches your eye? Maybe one a bit... cheaper?"
         return f"Doesn't look like we sell anything by the name of {requestedItemName}, exactly... did you misspell it?"
     
-    def print_customers(self, verbose = False):
-        if verbose:
-            return [f"{customer.name} (ID: {customer.userID}, Wealth: {customer.wealth} coins, Tribe: {customer.tribe})" for customer in self.customers]
-        return [f"{customer.realname} \"{customer.servernickname}\"" for customer in self.customers]
+    def print_customers(self, verbose = False, tribe = None):
+        output = "Customers:\n"
+        for customer in self.customers:
+            if tribe and customer.tribe != tribe:
+                continue
+            output += f"* {customer.realname} (\"{customer.servernickname}\")" 
+            if verbose:
+                output += f" (strID: {customer.discordIDstr}, intID: {customer.discordIDint}, Wealth: {customer.wealth}g, Tribe: {customer.tribe})"
+            output += "\n"
+        return output
     
     def display(self):
         output = f'~~' + " " * 10 + "~~\n"
@@ -179,7 +192,7 @@ class Shop:
             output += "[We're sold out!]\n"
         output += f'~~' + " " * 10 + "~~\n"
         if self.inventory != []:
-            output = "*To buy an item, use the command !buy \"<item name>\".*" + output
+            output += "*To buy an item, use the command !buy \"<item name>\".*"
         return output
 
     def str_detailed_summary(self):
@@ -196,7 +209,7 @@ class Shop:
         if len(self.customers) == 0:
             output += "  - (No Current Customers)\n"
         for customer in self.customers:
-            output += f"  - {customer.name} (id: {customer.userID}, wealth: {customer.wealth}g)\n"
+            output += f"  - {customer.realname} (id: {customer.discordIDstr}, wealth: {customer.wealth}g)\n"
             if customer.inventory:
                 output += "    Inventory:\n"
                 for item in customer.inventory:

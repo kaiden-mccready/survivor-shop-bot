@@ -3,3 +3,4 @@ customers/testing_person.json
 backups/
 __pycache__/
 config.py
+logs.txt

@@ -1,3 +1,6 @@
+# TODO: update show_customers command to display a bit nicer
+# TODO: maybe add a "show customer <userID>" command to show more detailed info/stats about a specific customer?
+# TODO: update add_customer to include real name requirement + get discord data and update help message accordingly
 '''
 Made by: Kaiden McCready 2/2025
 '''
@@ -82,7 +85,8 @@ async def help(ctx):
                    + f"\n* {todaysShop.prefix}check_shop - View items currently in stock" \
                    + f"\n* {todaysShop.prefix}check_inventory - View your own inventory" \
                    + f"\n* {todaysShop.prefix}buy \"<item name>\" - Buy an item from the shop" \
-                   + f"\n* {todaysShop.prefix}use \"<item name>\" - Use an item from your inventory")
+                   + f"\n* {todaysShop.prefix}use \"<item name>\" - Use an item from your inventory" \
+                   + f"\n* {todaysShop.prefix}give_away \"<item name>\" - Give an item from your inventory to someone else on your tribe (you will be prompted to choose a recipient)")
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -115,6 +119,7 @@ async def check_inventory(ctx, user: str | None = None):
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
 async def buy(ctx, item_name: str):
     await ctx.send(todaysShop.attemptBuy(ctx.author.name, item_name))
+    update_shop_displays.start() # Update shop displays after a purchase
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -124,10 +129,20 @@ async def use(ctx, item_name: str):
 
 @bot.command()
 @commands.check_any(commands.has_role([*CUSTOMER_ROLES, *ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def give(ctx, recipient: str, item_name: str):
-    await ctx.send("Please enter the user ID of the person you want to give the item to:")
-    recipient = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+async def give_away(ctx, item_name: str):
     customer = shop.id_to_customer(todaysShop, ctx.author.name)
+    if customer is None:
+        await ctx.send("You aren't a customer yet! You can't give away items if you don't have any...")
+        return
+    await ctx.send("Please enter the name of the person you want to give the item to:\n" + todaysShop.print_customers(tribe=customer.tribe))
+    recipientStr = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    recipient = shop.id_to_customer(todaysShop, recipientStr)
+    if recipient is None:
+        await ctx.send(f"Could not find a customer with the ID '{recipientStr}'. Make sure you entered it correctly and that the recipient is registered as a customer.")
+        return
+    if recipient.tribe != customer.tribe:
+        await ctx.send(f"Nice try... {recipient.realname} is **not** in your party, sneaky sneaky.")
+        return
     await ctx.send(customer.give(item_name, recipient))
 
 # admin commands (beginning with prefix)
@@ -137,7 +152,6 @@ async def give(ctx, recipient: str, item_name: str):
 async def help_admin(ctx):
     await ctx.send("Here are the admin commands you can use:" + \
                    f"\n* {todaysShop.prefix}check_customers - View a list of all customers (use verbose=True for more details)" + \
-                   f"\n* {todaysShop.prefix}check_inventory_of <userID> - View the inventory of a specific user" +
                    f"\n* {todaysShop.prefix}move_money <userID> <amount> - Add or remove money from a user's account (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}move_money_tribe <tribe> <amount> - Add or remove money from all members of a tribe" +
                    f"\n* {todaysShop.prefix}add_shop_item - Add a new item to the shop (you will be prompted for item details)" +
@@ -145,7 +159,7 @@ async def help_admin(ctx):
                    f"\n* {todaysShop.prefix}change_item_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
                    f"\n* {todaysShop.prefix}add_customer <userID> <wealth> <tribe> - Add a new customer to the shop with an optional starting wealth and tribe (you can say \"myself\")" + \
                    f"\n* {todaysShop.prefix}remove_customer <userID> - Remove a customer from the shop (you can say \"myself\")" + \
-                   "\n**Mega Admin Commands (use with caution):**" + \
+                   "\n**Mega Admin Commands (usable by hosts only):**" + \
                    f"\n* {todaysShop.prefix}backup - Manually trigger a backup of the shop's state" + \
                    f"\n* {todaysShop.prefix}restore - Manually restore the shop's state from the latest backup" + \
                    f"\n* {todaysShop.prefix}clear_shop - Clear all items and customer data from the shop (use with extreme caution!)" + \
@@ -168,7 +182,7 @@ async def move_money(ctx, userID: str, howMuch: int):
         await ctx.send(f"Could not find a customer with the ID '{userID}'.")
         return
     customer.wealth += howMuch
-    await ctx.send(f"done. {customer.name}'s wealth is now {customer.wealth}")
+    await ctx.send(f"done. {userID}'s wealth is now {customer.wealth}")
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
@@ -192,7 +206,12 @@ async def add_shop_item(ctx):
     if item_description.lower() == 'none':
         item_description = None
 
-    new_item = shop.Item(name=item_name, price=item_price, description=item_description)
+    await ctx.send("Please enter a description for the item when used (or type 'none'):")
+    item_description_on_use = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if item_description_on_use.lower() == 'none':
+        item_description_on_use = None
+
+    new_item = shop.Item(name=item_name, price=item_price, description=item_description, description_on_use=item_description_on_use)
     todaysShop.stock(new_item)
     await ctx.send(f"{item_name} has been added to the shop with a price of {item_price} coins.")
 
@@ -272,7 +291,6 @@ async def restore(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def restore_specific(ctx, n: int = 10):
-    # show user past 10 backups to choose from
     backup_folder = DEFAULT_BACKUP_FOLDER_NAME
     if backup_folder and os.path.exists(backup_folder):
         backup_files = [f for f in os.listdir(backup_folder) if f.startswith("shop_backup") and f.endswith(".json")]
@@ -309,6 +327,7 @@ async def clear_shop(ctx):
     todaysShop = shop.Shop(backup_folder=DEFAULT_BACKUP_FOLDER_NAME, from_backup=False, prefix=COMMAND_PREFIX)
     todaysShop.backup()
     await ctx.send("Shop cleared!")
+
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -371,6 +390,16 @@ async def import_folder(shop_to_add_to: shop.Shop, folder_path: str, object_type
 
 bot.run(API_KEY)
 
+async def update_shop_displays():
+    await bot.wait_until_ready()
+    for guild in bot.guilds:
+        for channel in guild.text_channels:
+            try:
+                async for message in channel.history(limit=100):
+                    if message.author == bot.user and message.content.startswith("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:"):
+                        await message.edit(content="Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
+            except discord.Forbidden:
+                pass
 ##### Shutdown handlers #####
 
 def exit_handler():
