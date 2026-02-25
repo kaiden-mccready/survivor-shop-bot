@@ -143,12 +143,13 @@ async def help_admin(ctx):
                    f"\n* {todaysShop.prefix}add_shop_item - Add a new item to the shop (you will be prompted for item details)" +
                    f"\n* {todaysShop.prefix}remove_shop_item <item name> - Remove an item from the shop" +
                    f"\n* {todaysShop.prefix}change_item_quantity <item name> <new quantity> - Change the quantity of an item in the shop" + \
-                   f"\n* {todaysShop.prefix}add_myself_as_customer - Add yourself as a customer (if you haven't already) to be able to use customer commands" + \
+                   f"\n* {todaysShop.prefix}add_customer <userID> <wealth> <tribe> - Add a new customer to the shop with an optional starting wealth and tribe (you can say \"myself\")" + \
+                   f"\n* {todaysShop.prefix}remove_customer <userID> - Remove a customer from the shop (you can say \"myself\")" + \
                    "\n**Mega Admin Commands (use with caution):**" + \
                    f"\n* {todaysShop.prefix}backup - Manually trigger a backup of the shop's state" + \
                    f"\n* {todaysShop.prefix}restore - Manually restore the shop's state from the latest backup" + \
                    f"\n* {todaysShop.prefix}clear_shop - Clear all items and customer data from the shop (use with extreme caution!)" + \
-                   f"\n* {todaysShop.prefix}restore_specific - Restore the shop's state from a specific backup file (you will be prompted to choose from recent backups)" + \
+                   f"\n* {todaysShop.prefix}restore_specific <n> - Restore the shop's state from a specific backup file (you will be prompted to choose from recent n backups, default 10)" + \
                    f"\n* {todaysShop.prefix}add_folder_items <folder path> - Add all items from a specified folder to the shop" + \
                    f"\n* {todaysShop.prefix}add_folder_customers <folder path> - Add all customers from a specified folder to the shop")
 
@@ -217,15 +218,43 @@ async def change_item_quantity(ctx, item_name: str, new_quantity: int):
 
 @bot.command()
 @commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
-async def add_customer(ctx, userID: str, wealth: int = 0):
+async def add_customer(ctx, userID: str, wealth: int = 0, tribe: str | None = None):
     if userID == "myself":
         userID = ctx.author.name
     if shop.id_to_customer(todaysShop, userID) is not None:
         await ctx.send(f"{userID} is already registered as a customer.")
         return
-    new_customer = shop.Customer(name=userID, userID=userID, wealth=wealth)
+    await ctx.send(f"Please enter the real name of the customer (or type 'none'):")
+    realname = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if realname.lower() == 'none':
+        realname = userID
+    new_customer = shop.Customer(
+        realname=realname, 
+        discordIDstr=userID, 
+        discordIDint=await get_discord_id_from_str(userID), 
+        servernickname=await get_server_nickname_from_str(userID), 
+        wealth=wealth,
+        tribe=tribe
+    )
     todaysShop.customers.append(new_customer)
     await ctx.send(f"{userID} has been added as a customer with {wealth} coins.")
+
+@bot.command()
+@commands.check_any(commands.has_role([*ADMIN_ROLES]), commands.has_permissions(administrator=True))
+async def remove_customer(ctx, userID: str):
+    if userID == "myself":
+        userID = ctx.author.name
+    customer = shop.id_to_customer(todaysShop, userID)
+    if customer is None:
+        await ctx.send(f"Could not find a customer with the ID '{userID}'.")
+        return
+    await ctx.send(f"Are you sure you want to remove {customer.realname} from the shop? Type 'yes' to confirm.")
+    confirmation = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
+    if confirmation.lower() != 'yes':
+        await ctx.send("Customer removal cancelled.")
+        return
+    todaysShop.customers.remove(customer)
+    await ctx.send(f"{customer.realname} has been removed from the shop.")
 
 # mega admin commands (use with caution)
 @bot.command()
@@ -242,14 +271,14 @@ async def restore(ctx):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def restore_specific(ctx):
+async def restore_specific(ctx, n: int = 10):
     # show user past 10 backups to choose from
     backup_folder = DEFAULT_BACKUP_FOLDER_NAME
     if backup_folder and os.path.exists(backup_folder):
         backup_files = [f for f in os.listdir(backup_folder) if f.startswith("shop_backup") and f.endswith(".json")]
         if backup_files:
             backup_files.sort(key=lambda f: os.path.getctime(os.path.join(backup_folder, f)), reverse=True)
-            recent_backups = backup_files[:10]
+            recent_backups = backup_files[:n] # show n most recent backups
             backup_list_message = "Please choose a backup to restore from the list below by typing its number:\n"
             for i, backup in enumerate(recent_backups):
                 backup_list_message += f"{i + 1}. {backup}\n"
@@ -301,7 +330,6 @@ async def get_discord_id_from_str(discordIDstr: str) -> int:
             return user.id or "No ID"
     raise ValueError(f"Could not find user with global name '{discordIDstr}' for finding Discord ID.")
 
-    
 async def get_server_nickname_from_str(discordIDstr: str) -> str:
     users = bot.get_all_members()
     print(f"Looking for user with global name '{discordIDstr}'...")
