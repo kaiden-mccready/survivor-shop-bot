@@ -104,6 +104,7 @@ class Shop:
                            'discordIDstr': customer.discordIDstr,
                            'realname': customer.realname,
                            'discordIDint': customer.discordIDint,
+                           'tribe': customer.tribe,
                            'wealth': customer.wealth, 
                            'inventory': [vars(item) for item in customer.inventory]
                            } for customer in self.customers]
