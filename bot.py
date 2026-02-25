@@ -353,7 +353,6 @@ async def add_folder_items(ctx, folder_path: str = "items"):
 
 async def get_discord_id_from_str(discordIDstr: str) -> int:
     users = bot.get_all_members()
-    print(f"Looking for user with global name '{discordIDstr}'...")
     for user in users:
         if user.name == discordIDstr:
             return user.id or "No ID"
@@ -361,7 +360,6 @@ async def get_discord_id_from_str(discordIDstr: str) -> int:
 
 async def get_server_nickname_from_str(discordIDstr: str) -> str:
     users = bot.get_all_members()
-    print(f"Looking for user with global name '{discordIDstr}'...")
     for user in users:
         if user.name == discordIDstr:
             return user.global_name or "No nickname"
