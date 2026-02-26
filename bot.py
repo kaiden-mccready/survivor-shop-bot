@@ -76,7 +76,7 @@ async def update_shop_displays():
     for guild in bot.guilds:
         for channel in guild.text_channels:
             try:
-                async for message in channel.history(limit=100):
+                async for message in channel.history(limit=30):
                     if message.author == bot.user and message.content.startswith("Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:"):
                         await message.edit(content="Hello, weary traveler, it's good to see you. Welcome to my shop! Here's what's for sale:\n" + todaysShop.display())
             except discord.Forbidden:
@@ -158,7 +158,6 @@ async def give_away(ctx, item_name: str):
     await ctx.send(customer.give(item_name, recipient))
 
 # admin commands (beginning with prefix)
-
 @bot.command()
 @commands.check_any(commands.has_any_role(*ADMIN_ROLES), commands.has_permissions(administrator=True))
 async def help_admin(ctx):
@@ -181,6 +180,24 @@ async def help_admin(ctx):
                    f"\n* {todaysShop.prefix}restore_specific <n> - Restore the shop's state from a specific backup file (you will be prompted to choose from recent n backups, default 10)" + \
                    f"\n* {todaysShop.prefix}add_folder_items <folder path> (default \"items\") - Add all items from a specified folder to the shop" + \
                    f"\n* {todaysShop.prefix}add_folder_customers <folder path> (default \"customers\") - Add all customers from a specified folder to the shop")
+
+@bot.command()
+@commands.check_any(commands.has_any_role(*ADMIN_ROLES), commands.has_permissions(administrator=True))
+async def echo(ctx, channel_id: str, *message: str):
+    # check if channel_id has form <#int>
+    if not channel_id.startswith("<#") or not channel_id.endswith(">"):
+        await ctx.send(f"Invalid channel ID format. Please use the format #<channel>.")
+        return
+    try:
+        channel_id = int(channel_id[2:-1])  # Extract the integer part from <#int>
+    except ValueError:
+        await ctx.send(f"Invalid channel ID. Please ensure it is a valid integer.")
+        return
+    channel = bot.get_channel(channel_id)
+    if channel:
+        await channel.send(" ".join(message))
+    else:
+        await ctx.send(f"Could not find a channel with the ID '{channel_id}'.")
 
 @bot.command()
 @commands.check_any(commands.has_any_role(*ADMIN_ROLES), commands.has_permissions(administrator=True))
@@ -385,14 +402,19 @@ async def restore_specific(ctx, n: int = 10):
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def clear_shop(ctx):
-    await ctx.send("Are you sure you want to clear the shop? This will delete all items and customer data. Type 'yes' to confirm.")
+async def clear_shop(ctx, type: str | None = None):
+    await ctx.send("Are you sure you want to clear the shop? This will delete all items and/or customer data. Type 'yes' to confirm.")
     confirmation = (await bot.wait_for('message', check=lambda m: m.author == ctx.author)).content
     if confirmation.lower() != 'yes':
         await ctx.send("Shop clear cancelled.")
         return
     global todaysShop
-    todaysShop = shop.Shop(backup_folder=DEFAULT_BACKUP_FOLDER_NAME, from_backup=False, prefix=COMMAND_PREFIX)
+    if type == "items":
+        todaysShop.inventory = []
+    elif type == "customers":
+        todaysShop.customers = []
+    else:
+        todaysShop = shop.Shop(backup_folder=DEFAULT_BACKUP_FOLDER_NAME, from_backup=False, prefix=COMMAND_PREFIX)
     todaysShop.backup()
     await ctx.send("Shop cleared!")
 
@@ -446,12 +468,12 @@ async def import_folder(shop_to_add_to: shop.Shop, folder_path: str, object_type
                     description_on_use_str = item_data.get('description_on_use')
                     description_on_use_str = description_on_use_str.replace('@Host', "<@&1452373901341622343>")
                     description_on_use_str = description_on_use_str.replace('@Shopkeeper', "<@&1476355335659982908>")
-                    new_item = shop.Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
+                    new_item = shop.Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=description_on_use_str, quantity=item_data.get('quantity'))
                     shop_to_add_to.stock(new_item)
             else:
                 raise Exception(f"Invalid object type '{object_type}' specified. Must be 'folder' or 'item'.")
             # change file to hidden
-            os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
+            #os.rename(os.path.join(folder_path, filename), os.path.join(folder_path, '.' + filename))
             print(f"Imported {object_type} '{filename}' and hid filename.")
 
 

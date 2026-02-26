@@ -41,7 +41,7 @@ class Customer:
              raise Exception("Sorry, something went VERY wrong in my code... Tell Kaiden 'Exit code 0'.") 
         self.wealth = self.wealth - newItem.price
         for item in self.inventory:
-            if item.name == newItem.name:
+            if item.name.lower() == newItem.name.lower():
                 item.quantity += 1
                 return
         del newItem.price
@@ -49,7 +49,7 @@ class Customer:
     
     def use(self, requestedItemName: str) -> str:
         for item in self.inventory:
-             if item.name == requestedItemName:
+             if item.name.lower() == requestedItemName.lower():
                 item.quantity += -1
                 if item.quantity <= 0:
                     self.inventory.remove(item)
@@ -166,11 +166,11 @@ class Shop:
         def canAfford(itemPrice, wealth): return wealth >= itemPrice
         
         for item in self.inventory:
-            if item.name == requestedItemName:
+            if item.name.lower() == requestedItemName.lower():
                 if canAfford(item.price, wealth):
                     customer.buy(item.copy())
                     self.remove_one_of(item)
-                    return f"Thank you for your patronage! One {requestedItemName} coming up! \n*You felt your pockets get slightly heavier, and your gold supply drop to ${customer.wealth}*"
+                    return "Thank you for your patronage! One quotebook entry coming up!\n" + f"*Your pockets are now heavy with items. You reach for your gold pouch eager to buy more, but feel nothing inside. **Your gold supply drops to 0g.***" if customer.wealth == 0 else f"*You feel your pockets get slightly heavier, and your gold supply drop to {customer.wealth}g*"
                 else:
                     return f"It seems you're a bit too low on funds for that purchase by about {item.price - wealth}g... Perhaps another ware catches your eye? Maybe one a bit... cheaper?"
         return f"Doesn't look like we sell anything by the name of {requestedItemName}, exactly... did you misspell it?"
@@ -189,7 +189,7 @@ class Shop:
     def display(self):
         output = f'~~' + " " * 10 + "~~\n"
         for item in self.inventory:
-             output += f"* {item.quantity}x {item.name} - {item.price}g {"\n-# \"" + item.description + "\"\n" if item.description else "\n"}"
+             output += f"- {item.quantity}x {item.name} - {item.price}g \n{"\n".join([f"-# *{item}*" for item in item.description.split('\n')]) if item.description else ""}\n"
         if self.inventory == []:
             output += "[We're sold out!]\n"
         output += f'~~' + " " * 10 + "~~\n"
