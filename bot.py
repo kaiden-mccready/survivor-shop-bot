@@ -443,6 +443,9 @@ async def import_folder(shop_to_add_to: shop.Shop, folder_path: str, object_type
             elif object_type == "item":
                 with open(os.path.join(folder_path, filename), 'r') as f:
                     item_data = json.load(f)
+                    description_on_use_str = item_data.get('description_on_use')
+                    description_on_use_str = description_on_use_str.replace('@Host', "<@&1452373901341622343>")
+                    description_on_use_str = description_on_use_str.replace('@Shopkeeper', "<@&1476355335659982908>")
                     new_item = shop.Item(name=item_data['name'], price=item_data['price'], description=item_data.get('description'), description_on_use=item_data.get('description_on_use'))
                     shop_to_add_to.stock(new_item)
             else:
