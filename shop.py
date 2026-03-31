@@ -194,7 +194,7 @@ class Shop:
             output += "[We're sold out!]\n"
         output += f'~~' + " " * 10 + "~~\n"
         if self.inventory != []:
-            output += "*To buy an item, use the command !buy \"<item name>\".*"
+            output += f"*To buy an item, use the command {COMMAND_PREFIX}buy \"<item name>\".*"
         return output
 
     def str_detailed_summary(self):
